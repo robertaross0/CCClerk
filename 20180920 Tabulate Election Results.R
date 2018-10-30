@@ -3,12 +3,22 @@
 # Here, we created tabulated data and graphics
 #Written by: Rob Ross, 2018-09-20, raross1217@gmail.com
 
-#install.packages("RSQLite")
-#install.packages("digest")
-
-library(sqldf)
 
 rm(list=ls())
+
+# Libraries ---------------------------------------------------------------
+libs <- c("RSQLite", "digest", "sqldf")
+# Check to see if packages are installed. Install them if they are not, then load them into the R session.
+check.packages <- function(libs){
+  new.libs <- libs[!(libs %in% installed.packages()[, "Package"])]
+  if (length(new.libs)) 
+    install.packages(new.libs, dependencies = TRUE)
+  sapply(libs, require, character.only = TRUE)
+}
+for (iter in 1:length(libs))
+  check.packages(libs[iter]);
+
+# Designate file paths ----------------------------------------------------
 
 election_date <-"20170405_"
 election_type <-"consolidated_"
