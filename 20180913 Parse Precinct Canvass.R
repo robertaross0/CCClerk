@@ -75,27 +75,33 @@ output_file_long <-paste(file_path, "/", file_name, "_LONG", ".csv", sep="")
 contest_number <- 0
 
 #How many sheets in this workbook? Need to loop through sheets until you get an error.
-count_sheets <- function(sheet) {
-  out <- tryCatch(
-    {
-     read_xlsx(input_file, sheet=paste("Sheet",sheet,sep=""),range="A1:A2",col_types="text")
-      return(NULL)
-    },
-    error=function(cond) {
-      return(sheet-1)
-    },
-    warning=function(cond) {
-      return(NULL)
-    },
-    finally={
-    }
-  )    
-  return(out)
-}
-for(s in 1:1000){
-  canvass_count <-count_sheets(s)
-  if (length(canvass_count)==1) break; 
-}
+# mtcars xlsx file from demoFiles subfolder of package XLConnect
+canvass_count <- length( excel_sheets( input_file ) )
+
+# IGNORE THIS - TAKES TOO LONG
+# 
+# count_sheets <- function(sheet) {
+#   out <- tryCatch(
+#     {
+#      read_xlsx(input_file, sheet=paste("Sheet",sheet,sep=""),range="A1:A2",col_types="text")
+#       return(NULL)
+#     },
+#     error=function(cond) {
+#       return(sheet-1)
+#     },
+#     warning=function(cond) {
+#       return(NULL)
+#     },
+#     finally={
+#     }
+#   )    
+#   return(out)
+# }
+# for(s in 1:1000){
+#   canvass_count <-count_sheets(s)
+#   cat(s)
+#   if (length(canvass_count)==1) break; 
+# }
 cat(file_name, "has", canvass_count, "sheets")
 
 #Create an empty data frame to hold final data
@@ -105,120 +111,142 @@ for (sheet in 1:canvass_count){
 
   cat("Sheet", sheet)
   # Different files have slightly different layouts
-  
-  if(as.Date(election_date, "%Y%m%d")>=as.Date("20180302", "%Y%m%d")){skip <- 5
-  } else{skip <- 6}
-  
-  #List of precincts on this sheet
-  precincts <- subset(read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), skip=skip, col_types="text")
-                      , X__1!="All Tally Types" & X__1!="Contest Total"
-                      , select=c("X__1", "Registered", "Ballots Cast"))
-  colnames(precincts)[1] <- "precinct"
-  colnames(precincts)[2] <- "registered"
-  colnames(precincts)[3] <- "ballots_cast"
-  precincts$row <- as.numeric(rownames(precincts))
-  
-  if(as.Date(election_date, "%Y%m%d")>=as.Date("20180302", "%Y%m%d")) {
-  #Count the number of contests on this sheet
-  read_xlsx(input_file, sheet=paste("Sheet", 1, sep="" ), range="A7:Z8", col_types="numeric")
-  contests_number <- read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), range="A5:Z6", col_types="numeric")
-  contests_number[is.na(contests_number)] <- 0
-  max_contests <- max(contests_number[1,1:15])
-  } else {max_contests <- 1}
-  
-  #Grab the string with the contest names
-  contest_names <- unlist(
-    sapply(sapply(sapply(
-      read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), range="C5:C5", col_names=FALSE)
-      , function(i) strsplit(i, "\r\n2"))
-      , function(i) strsplit(i, "\r\n3"))
-      , function(i) strsplit(i, "\r\n4"))
-    )
-
-  #Remove the leading 1
-  contest_names[1] <- substr(contest_names[1],3,nchar(contest_names[1]))
-  
-  #Ok, some sheets have numbers >1 but only one contest listed...
-  if (length(contest_names)>max_contests) next
-  #Made a handy matrix to help figure out naming sequence
-  # Col	Contest	formula
-  # 1	1	i
-  # 2	1	i-1
-  # 3	2	i-1
-  # 4	2	i/2
-  # 5	3	i+1/2
-  # 6	3	i/2
-  # 7	4	i+1/2
-  # 8	4	i/2
-  # and so on...
-
-  if(as.Date(election_date, "%Y%m%d")>=as.Date("20180302", "%Y%m%d")) {
-  #capture the ballots cast for each candidate in each contest on the sheet, and their names
-  #Data 
-  for (x in 1:max_contests){
+  if(as.Date(election_date, "%Y%m%d")<as.Date("20180302", "%Y%m%d")) {
+      
+    #List of precincts on this sheet
+    precincts <- subset(read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), skip=6, col_types="text")
+                        , X__1!="All Tally Types" & X__1!="Contest Total"
+                        , select=c("X__1", "Registered", "Ballots Cast"))
+    colnames(precincts)[1] <- "precinct"
+    colnames(precincts)[2] <- "registered"
+    colnames(precincts)[3] <- "ballots_cast"
+    precincts$row <- as.numeric(rownames(precincts))
     
+    
+    #Count the number of contests on this sheet
+    read_xlsx(input_file, sheet=paste("Sheet", 1, sep="" ), range="A7:Z8", col_types="numeric")
+    contests_number <- read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), range="A5:Z6", col_types="numeric")
+    contests_number[is.na(contests_number)] <- 0
+    max_contests <- max(contests_number[1,1:15])
+    
+    #Grab the string with the contest names
+    contest_names <- unlist(
+      sapply(sapply(sapply(
+        read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), range="C5:C5", col_names=FALSE)
+        , function(i) strsplit(i, "\r\n2"))
+        , function(i) strsplit(i, "\r\n3"))
+        , function(i) strsplit(i, "\r\n4"))
+      )
+  
+    #Remove the leading 1
+    contest_names[1] <- substr(contest_names[1],3,nchar(contest_names[1]))
+    
+    #Ok, some sheets have numbers >1 but only one contest listed...
+    if (length(contest_names)>max_contests) next
+    #Made a handy matrix to help figure out naming sequence
+    # Col	Contest	formula
+    # 1	1	i
+    # 2	1	i-1
+    # 3	2	i-1
+    # 4	2	i/2
+    # 5	3	i+1/2
+    # 6	3	i/2
+    # 7	4	i+1/2
+    # 8	4	i/2
+    # and so on...
     contest_number <- contest_number + 1
-    columns <- read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ))
-    columns <- subset(columns[5,])
-    columns[is.na(columns)] <- 0
-    # We want to know dimensions of the whole sheet
-    cols <- ncol(columns)
-    rows <- nrow(precincts)
-    #Make a list of excel column titles
-    excel_colnames <- c("A", 	"B", 	"C", 	"D", 	"E", 	"F", 	"G", 	"H", 	"I", 	"J", 	"K", 	"L", 	"M", 	"N", 	"O", 	"P", 	"Q", 	"R", 	"S", 	"T", 	"U", 	"V", 	"W", 	"X", 	"Y", 	"Z")
-    #Rename columns consistent with excel for ease
-    for (i in 1:cols) {
-        colnames(columns)[i] <- paste(excel_colnames[[i]])
+    
+    #capture the ballots cast for each candidate in each contest on the sheet, and their names
+    #Data 
+    for (x in 1:max_contests){
+      
+      columns <- read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ))
+      columns <- subset(columns[5,])
+      columns[is.na(columns)] <- 0
+      # We want to know dimensions of the whole sheet
+      cols <- ncol(columns)
+      rows <- nrow(precincts)
+      #Make a list of excel column titles
+      excel_colnames <- c("A", 	"B", 	"C", 	"D", 	"E", 	"F", 	"G", 	"H", 	"I", 	"J", 	"K", 	"L", 	"M", 	"N", 	"O", 	"P", 	"Q", 	"R", 	"S", 	"T", 	"U", 	"V", 	"W", 	"X", 	"Y", 	"Z")
+      #Rename columns consistent with excel for ease
+      for (i in 1:cols) {
+          colnames(columns)[i] <- paste(excel_colnames[[i]])
+      }
+      # we want to make a list of the names of the columns with a number in row 5 corrosponding to the contest we want
+      keep_list <- as.vector(apply(columns==x,1,function(a) paste0(colnames(columns)[a], sep=",", collapse = "")))
+      keep_list <- unique(unlist(sapply(keep_list, function(i) strsplit(i, ','))))
+      cols <- length(keep_list)
+      #generate the area of the spreadsheet that contains the election results for this race
+      keep_range <- paste(keep_list[1], "7:", keep_list[cols], rows+7, sep = "")
+      
+      #Pull these results, along with precinct identifiers
+      race <- read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), range=keep_range, col_types="numeric")
+      race[is.na(race)] <- 0
+      if(length(-grep("X__", colnames(race)))>0)
+      {
+        race <- race[, -grep("X__", colnames(race))]
+      }
+      
+      candidate_names <- names(race)
+      candidate_number <- length(race)
+      
+      for (i in 1:candidate_number) {
+        colnames(race)[i] <- paste("cand_","blts_",i, sep="")
+      }
+      
+      for(i in 1:candidate_number) {
+        race[ , paste0("candnm_",i)] = candidate_names[i]
+      }
+      
+      race$contest = contest_names[x]
+      
+      race$row <- as.numeric(rownames(race))
+      
+      race <- merge(precincts, race, by="row")
+      race$Sheet <- sheet
+      race$contest_number <- contest_number
+      race$contest_number_onsheet <- x
+      
+      final_data <- rbind.fill(final_data, race)
+      
+      help(read_xlsx)
+  }}else{
+    print("This is an newer file")
+    # For newer files, there is only one contest on each sheet. 
+  
+    race <- read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), skip=5)
+    n_max <- nrow(race)-4
+    cols <- ncol(race)
+    race <- subset(race[5:n_max, c(1,3,4,8:cols)])
+    colnames(race)[1] <- "precinct"
+    colnames(race)[2] <- "registered"
+    colnames(race)[3] <- "ballots_cast"
+    col_names <- names(race)
+    
+    for (i in 4: ncol(race)){
+      colnames(race)[i] <- paste("cand_blts_",(i-3),sep="")
+      race[is.na(race)] <- 0
     }
-    # we want to make a list of the names of the columns with a number in row 5 corrosponding to the contest we want
-    keep_list <- as.vector(apply(columns==x,1,function(a) paste0(colnames(columns)[a], sep=",", collapse = "")))
-    keep_list <- unique(unlist(sapply(keep_list, function(i) strsplit(i, ','))))
-    cols <- length(keep_list)
-    #generate the area of the spreadsheet that contains the election results for this race
-    keep_range <- paste(keep_list[1], "7:", keep_list[cols], rows+7, sep = "")
-    
-    #Pull these results, along with precinct identifiers
-    race <- read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), range=keep_range, col_types="numeric")
-    race[is.na(race)] <- 0
-    if(length(-grep("X__", colnames(race)))>0)
-    {
-      race <- race[, -grep("X__", colnames(race))]
+        
+    for(i in 1:(ncol(race)-3)) {
+      race[ , paste0("candnm_",i)] = col_names[(i+3)]
     }
     
-    candidate_names <- names(race)
-    candidate_number <- length(race)
+    # Add in identifiers
+    race$sheet <- sheet
+    ccontest <- unlist(read_xlsx(input_file, sheet=paste("Sheet", sheet, sep="" ), range="C5:C5", col_names=FALSE))
+    race$contest_number <-	contest_number 
+    race$contest_number_onsheet <- 1
     
-    for (i in 1:candidate_number) {
-      colnames(race)[i] <- paste("cand_","blts_",i, sep="")
-    }
-    
-    for(i in 1:candidate_number) {
-      race[ , paste0("candnm_",i)] = candidate_names[i]
-    }
-    
-    race$contest = contest_names[x]
-    
-    race$row <- as.numeric(rownames(race))
-    
-    race <- merge(precincts, race, by="row")
-    race$Sheet <- sheet
-    race$contest_number <- contest_number
-    race$contest_number_onsheet <- x
-    
-    dim(race)
     final_data <- rbind.fill(final_data, race)
     
-    
-  }}else{
-    # For newer files, there is only one contest on each sheet. 
-    columns <- read_xlsx(input_file, sheet=paste("Sheet", 1, sep="" ))
-    cols <- ncol(columns)
-    rows <- nrow(precincts)
   }
   
   cat("Completed contest", contest_number, "sheet", sheet, ". Final data is now", nrow(final_data), "long")
   
 }
+
+# Final cleanup of WIDE ----
 
 final_data$election_date <- as.Date(election_date, "%Y%m%d")
 final_data$contest<-trimws(final_data$contest)
@@ -243,7 +271,7 @@ test <- final_data[
 
 write.csv(final_data, file = output_file_wide, row.names=FALSE)
 
-# We want long-form data for some purposes
+# Reshape individual election WIDE to LONG ----
 
 # Empty data frame to contain long-form data
 final_data_long <- data.frame(precinct=as.character())
@@ -269,7 +297,7 @@ print(paste(file_name, "finished at", Sys.time()))
 
 
 rm(precincts, race, columns)
-# Compile all fles into a single master file ----------
+# Compile all WIDE LONG into a single WIDE LONG master file ----------
 
 # Create master long and wide files
 
